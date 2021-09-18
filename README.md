@@ -42,3 +42,6 @@ int main() {
 ```
 
 The resulting binary needs a server to be run, you can use emrun, python -m https.server ...etc.
+
+The demo can be accessed here:
+https://moalyousef.github.io/fltk_wasm/
