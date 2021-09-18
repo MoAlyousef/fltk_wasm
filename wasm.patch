@@ -1,0 +1,156 @@
+diff --git a/FL/Fl_Window.H b/FL/Fl_Window.H
+index 4ce65f3..18a7385 100644
+--- a/FL/Fl_Window.H
++++ b/FL/Fl_Window.H
+@@ -53,6 +53,7 @@ class FL_EXPORT Fl_Window : public Fl_Group {
+   friend int Fl::arg(int argc, char **argv, int &i);
+   friend class Fl_X;
+   friend class Fl_Window_Driver;
++  friend class Fl_PicoSDL_Window_Driver;
+ private:
+   static char *default_xclass_;
+   static char show_iconic_; // 1 means create next window in iconic form
+diff --git a/FL/math.h b/FL/math.h
+index b78357e..6361606 100644
+--- a/FL/math.h
++++ b/FL/math.h
+@@ -16,9 +16,9 @@
+ 
+ // Xcode on macOS includes files by recursing down into directories.
+ // This code catches the cycle and directly includes the required file.
+-#ifdef fl_math_h_cyclic_include
+-#  include "/usr/include/math.h"
+-#endif
++// #ifdef fl_math_h_cyclic_include
++// #  include "/usr/include/math.h"
++// #endif
+ 
+ #ifndef fl_math_h
+ #  define fl_math_h
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 274df8e..b6d129a 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -186,9 +186,42 @@ else ()
+   )
+ endif ((USE_X11 OR USE_SDL) AND NOT OPTION_PRINT_SUPPORT)
+ 
++if (EMSCRIPTEN)
++  add_definitions(-DFLTK_USE_SDL -DU32=uint32_t -DHAVE_LONG_LONG)
++elseif(USE_SDL)
++  add_definitions(-DFLTK_USE_SDL)
++endif()
++
+ set (DRIVER_FILES)
+ 
+-if (USE_X11)
++if (EMSCRIPTEN)
++  set (DRIVER_FILES
++  drivers/Pico/Fl_Pico_System_Driver.cxx
++  drivers/Pico/Fl_Pico_Screen_Driver.cxx
++  drivers/Pico/Fl_Pico_Window_Driver.cxx
++  drivers/Pico/Fl_Pico_Graphics_Driver.cxx
++  drivers/Pico/Fl_Pico_Copy_Surface.cxx
++  drivers/Pico/Fl_Pico_Image_Surface.cxx
++  drivers/PicoSDL/Fl_PicoSDL_System_Driver.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Window_Driver.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Copy_Surface.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Image_Surface.cxx
++  drivers/PicoSDL/Fl_PicoSDL_Image_Surface_Driver.cxx
++  )
++  set (DRIVER_HEADER_FILES
++  drivers/Pico/Fl_Pico_System_Driver.H
++  drivers/Pico/Fl_Pico_Screen_Driver.H
++  drivers/Pico/Fl_Pico_Window_Driver.H
++  drivers/Pico/Fl_Pico_Graphics_Driver.H
++  drivers/PicoSDL/Fl_PicoSDL_System_Driver.H
++  drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.H
++  drivers/PicoSDL/Fl_PicoSDL_Window_Driver.H
++  drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.H
++  )
++
++elseif (USE_X11)
+ 
+   # X11 (including APPLE with X11)
+ 
+@@ -355,7 +388,7 @@ else ()
+     drivers/GDI/Fl_Font.H
+   )
+ 
+-endif (USE_X11)
++endif (EMSCRIPTEN)
+ 
+ source_group("Header Files" FILES ${HEADER_FILES})
+ source_group("Driver Source Files" FILES ${DRIVER_FILES})
+diff --git a/src/drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.cxx b/src/drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.cxx
+index 0257e1f..73bc34f 100644
+--- a/src/drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.cxx
++++ b/src/drivers/PicoSDL/Fl_PicoSDL_Graphics_Driver.cxx
+@@ -23,9 +23,9 @@
+ #include "../../Fl_Window_Driver.H"
+ 
+ #include <FL/Fl.H>
+-#define __APPLE__
++#ifdef FLTK_USE_SDL
+ #include <SDL2/SDL.h>
+-#undef __APPLE__
++#endif
+ 
+ extern Window fl_window;
+ 
+diff --git a/src/drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.cxx b/src/drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.cxx
+index 58759a7..384dc9a 100644
+--- a/src/drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.cxx
++++ b/src/drivers/PicoSDL/Fl_PicoSDL_Screen_Driver.cxx
+@@ -21,9 +21,9 @@
+ #include <FL/platform.H>
+ #include "../../Fl_Window_Driver.H"
+ 
+-#define __APPLE__
++#ifdef FLTK_USE_SDL
+ #include <SDL2/SDL.h>
+-#undef __APPLE__
++#endif
+ 
+ 
+ // FIXME: does that have to be here?
+@@ -61,7 +61,7 @@ double Fl_PicoSDL_Screen_Driver::wait(double time_to_wait)
+           case SDL_WINDOWEVENT_SHOWN:
+           {
+             if ( !window ) break;;
+-            Fl_Window_Driver *wd = window->driver();
++            Fl_Window_Driver *wd = Fl_Window_Driver::driver(window);
+             Fl_X *i = Fl_X::i(Fl::first_window());
+             wd->wait_for_expose_value = 0;
+             if ( i->region ) {
+diff --git a/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.H b/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.H
+index 8714285..d09690d 100644
+--- a/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.H
++++ b/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.H
+@@ -25,9 +25,9 @@
+ 
+ #include "../Pico/Fl_Pico_Window_Driver.H"
+ 
+-#define __APPLE__
++#ifdef FLTK_USE_SDL
+ #include <SDL2/SDL.h>
+-#undef __APPLE__
++#endif
+ 
+ 
+ class FL_EXPORT Fl_PicoSDL_Window_Driver : public Fl_Pico_Window_Driver
+diff --git a/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.cxx b/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.cxx
+index f101437..0866476 100644
+--- a/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.cxx
++++ b/src/drivers/PicoSDL/Fl_PicoSDL_Window_Driver.cxx
+@@ -62,7 +62,7 @@ Fl_X *Fl_PicoSDL_Window_Driver::makeWindow()
+   } else {
+     pNativeWindow = SDL_CreateWindow(pWindow->label(), pWindow->x(), pWindow->y(), pWindow->w(), pWindow->h(), 0);
+   }
+-  x->xid = SDL_CreateRenderer(pNativeWindow, -1, SDL_RENDERER_ACCELERATED);
++  x->xid = (uint64_t)SDL_CreateRenderer(pNativeWindow, -1, SDL_RENDERER_ACCELERATED);
+   pNativeTexture = SDL_CreateTexture((SDL_Renderer*)x->xid, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_TARGET, w(), h());
+   x->next = Fl_X::first;
+   wait_for_expose_value = 0;
