@@ -20,17 +20,19 @@ emscripten_set_main_loop_arg() needs to be used to run the main loop:
 #include <FL/Fl_Button.H>
 #include <FL/Fl_Box.H>
 #include <emscripten.h>
+#include <time.h>
 
 void main_loop(void *) {
     Fl::wait();
 }
 
 void cb(Fl_Widget *w, void *data) {
-    ((Fl_Box*)data)->color(FL_RED);
+    ((Fl_Box*)data)->color((unsigned int)rand());
     Fl::redraw();
 }
 
 int main() {
+    srand(time(0));
     auto win = new Fl_Window(600, 400);
     win->color(fl_rgb_color(240, 240, 240));
     auto box = new Fl_Box(40, 40, 520, 220, "Hello from FLTK 1.4");
