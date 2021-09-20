@@ -27,8 +27,9 @@ void main_loop(void *) {
 }
 
 void cb(Fl_Widget *w, void *data) {
-    ((Fl_Box*)data)->color((unsigned int)rand());
-    Fl::redraw();
+    auto box = (Fl_Box *)data;
+    box->color((unsigned int)rand());
+    box->redraw();
 }
 
 int main() {
